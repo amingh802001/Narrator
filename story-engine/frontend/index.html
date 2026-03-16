@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Story Engine</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ── SCREEN 1: ENTRY ── -->
+<div id="screen-entry" class="screen active">
+  <div class="hero">
+    <div class="hero-glyph">✦</div>
+    <h1>Story Engine</h1>
+    <p class="tagline">A multi-agent story construction system</p>
+  </div>
+
+  <div class="entry-modes">
+    <button class="mode-card active" id="btn-seed-mode" onclick="setMode('seed')">
+      <span class="mode-icon">💡</span>
+      <strong>Seed idea</strong>
+      <span>Start with a concept, feeling, or premise</span>
+    </button>
+    <button class="mode-card" id="btn-char-mode" onclick="setMode('character')">
+      <span class="mode-icon">👤</span>
+      <strong>Character first</strong>
+      <span>Define your character and world, let story emerge</span>
+    </button>
+  </div>
+
+  <!-- SEED INPUT -->
+  <div id="seed-input" class="input-section">
+    <div class="input-row">
+      <textarea id="seed-text" placeholder="A disgraced general returns to a city that no longer remembers why it feared him..." rows="3"></textarea>
+      <button class="mic-btn" id="mic-btn-seed" onclick="toggleVoiceInput('seed-text', 'mic-btn-seed')" title="Speak your idea">🎙</button>
+    </div>
+    <button class="btn-primary" onclick="initStory()">Begin ✦</button>
+  </div>
+
+  <!-- CHARACTER INPUT -->
+  <div id="character-input" class="input-section hidden">
+    <div class="char-fields">
+      <input id="char-name" placeholder="Character name" />
+      <input id="char-background" placeholder="Background (who are they, where from)" />
+      <input id="char-core-gap" placeholder="Core gap / wound (what do they desperately need)" />
+      <input id="char-values" placeholder="Values (what do they protect, what costs them to act against)" />
+      <input id="char-want" placeholder="Surface want (what they consciously pursue)" />
+      <input id="char-need" placeholder="Deeper need (what they actually need)" />
+    </div>
+    <div class="world-fields">
+      <p class="field-label">World</p>
+      <input id="world-ethos" placeholder="World ethos (governing logic, character of the world)" />
+      <input id="world-norms" placeholder="Norms (what is normal, permissible, expected)" />
+      <input id="world-enforcement" placeholder="Enforcement (how the world pushes back)" />
+      <input id="world-gap" placeholder="World gap (internal tension)" />
+    </div>
+    <button class="btn-primary" onclick="initStory()">Begin ✦</button>
+  </div>
+</div>
+
+<!-- ── SCREEN 2: CONSTITUTION ── -->
+<div id="screen-constitution" class="screen">
+  <div class="section-header">
+    <span class="step-badge">Story Constitution</span>
+    <h2 id="const-identity"></h2>
+  </div>
+  <div class="constitution-grid">
+    <div class="const-card">
+      <label>Engine</label>
+      <p id="const-engine"></p>
+    </div>
+    <div class="const-card">
+      <label>Theme</label>
+      <p id="const-theme"></p>
+    </div>
+    <div class="const-card">
+      <label>Emotional signature</label>
+      <p id="const-emotion"></p>
+    </div>
+    <div class="const-card">
+      <label>Protagonist</label>
+      <p id="const-protagonist"></p>
+    </div>
+    <div class="const-card">
+      <label>World</label>
+      <p id="const-world"></p>
+    </div>
+    <div class="const-card voice-card">
+      <label>Narration voice</label>
+      <p id="const-voice"></p>
+    </div>
+  </div>
+  <div class="section-header" style="margin-top:2rem">
+    <span class="step-badge">Choose your arc</span>
+    <p class="subtitle">Three dramatically distinct directions for this story</p>
+  </div>
+  <div id="arc-candidates" class="arc-grid"></div>
+</div>
+
+<!-- ── SCREEN 3: STORY ── -->
+<div id="screen-story" class="screen">
+  <div class="story-header">
+    <div id="arc-title-display" class="arc-title"></div>
+    <div id="beat-progress" class="beat-progress"></div>
+  </div>
+
+  <div class="story-layout">
+    <div class="scene-area">
+      <div id="scene-image-container" class="scene-image hidden">
+        <img id="scene-image" src="" alt="Scene illustration" />
+      </div>
+      <div id="scene-beat-label" class="beat-label"></div>
+      <div id="scene-prose" class="prose"></div>
+
+      <div class="scene-controls">
+        <button class="btn-narrate" id="btn-narrate" onclick="narrateScene()" title="Hear this scene narrated">
+          🔊 Narrate
+        </button>
+        <button class="btn-next" id="btn-next" onclick="nextScene()">
+          Continue →
+        </button>
+      </div>
+
+      <div class="intervention-area">
+        <div class="intervention-toggle" onclick="toggleIntervention()">
+          ✍ Redirect the story
+        </div>
+        <div id="intervention-panel" class="intervention-panel hidden">
+          <div class="input-row">
+            <textarea id="intervention-text" placeholder="How do you want to redirect the story from here?" rows="2"></textarea>
+            <button class="mic-btn" id="mic-btn-intervene" onclick="toggleVoiceInput('intervention-text', 'mic-btn-intervene')" title="Speak your direction">🎙</button>
+          </div>
+          <button class="btn-intervention" onclick="intervene()">Apply redirect ✦</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="story-sidebar">
+      <div class="sidebar-section">
+        <label>Arc position</label>
+        <div id="arc-position-display" class="arc-position"></div>
+      </div>
+      <div class="sidebar-section">
+        <label>Beat</label>
+        <div id="beat-title-display" class="beat-title-display"></div>
+      </div>
+      <div class="sidebar-section">
+        <label>Character state</label>
+        <div id="char-state-display" class="char-state"></div>
+      </div>
+      <div class="sidebar-section">
+        <label>World response</label>
+        <div id="world-state-display" class="world-state"></div>
+      </div>
+      <div class="sidebar-section">
+        <label>Story so far</label>
+        <div id="beats-completed" class="beats-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SCREEN 4: COMPLETE ── -->
+<div id="screen-complete" class="screen">
+  <div class="complete-hero">
+    <div class="hero-glyph">✦</div>
+    <h2>Story complete</h2>
+    <p id="complete-arc-title" class="complete-arc"></p>
+  </div>
+  <div id="complete-summary" class="complete-summary"></div>
+  <button class="btn-primary" onclick="startOver()">Tell another story ✦</button>
+</div>
+
+<!-- ── LOADING OVERLAY ── -->
+<div id="loading" class="loading hidden">
+  <div class="loading-inner">
+    <div class="spinner"></div>
+    <p id="loading-message">Thinking...</p>
+  </div>
+</div>
+
+<audio id="narration-audio" hidden></audio>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
