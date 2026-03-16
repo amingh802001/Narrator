@@ -8,20 +8,37 @@ async def generate_narration(
     scene: GeneratedScene,
     voice_style: VoiceStyle,
 ) -> bytes:
-    raise NotImplementedError("TTS coming in next version")
+    raise NotImplementedError("TTS handled by Web Speech API in frontend")
 
 
 async def transcribe_voice_input(
     audio_base64: str,
     mime_type: str = "audio/webm",
 ) -> str:
+    """Transcribe audio using Gemini's multimodal capability."""
     audio_bytes = base64.b64decode(audio_base64)
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+
+    # use gemini-2.5-flash for transcription — confirmed working
+    model = genai.GenerativeModel("gemini-2.5-flash")
+
     loop = asyncio.get_running_loop()
-    response = await loop.run_in_executor(
-        None, lambda: model.generate_content([
-            {"mime_type": mime_type, "data": audio_bytes},
-            "Transcribe this audio exactly. Return only the transcription."
-        ])
-    )
-    return response.text.strip()
+    try:
+        response = await loop.run_in_executor(
+            None, lambda: model.generate_content([
+                {"mime_type": mime_type, "data": audio_bytes},
+                "Please transcribe exactly what is spoken in this audio recording. Return only the transcribed text, nothing else."
+            ])
+        )
+        return response.text.strip()
+    except Exception as e:
+        # fallback — try with different mime type
+        try:
+            response = await loop.run_in_executor(
+                None, lambda: model.generate_content([
+                    {"mime_type": "audio/mp4", "data": audio_bytes},
+                    "Transcribe exactly what is spoken. Return only the transcribed text."
+                ])
+            )
+            return response.text.strip()
+        except Exception as e2:
+            raise ValueError(f"Transcription failed: {e2}")
