@@ -74,6 +74,8 @@ async def generate_scene_image(
     constitution: StoryConstitution = None,
     previous_scenes: list[GeneratedScene] = None,
     art_style: str = None,
+    seed_image_base64: str = None,
+    seed_image_mime: str = None,
 ) -> str | None:
     """Generate scene image using gemini-2.5-flash-image."""
 
@@ -99,7 +101,7 @@ async def generate_scene_image(
     loop = asyncio.get_running_loop()
     try:
         image_data = await loop.run_in_executor(
-            None, lambda: _generate_image(full_prompt)
+            None, lambda: _generate_image(full_prompt, seed_image_base64, seed_image_mime)
         )
         return image_data
     except Exception as e:
@@ -107,10 +109,21 @@ async def generate_scene_image(
         return None
 
 
-def _generate_image(prompt: str) -> str | None:
+def _generate_image(prompt: str, seed_image_base64: str = None, seed_image_mime: str = None) -> str | None:
     """Synchronous image generation using gemini-2.5-flash-image."""
+    import base64
     model = genai.GenerativeModel("gemini-2.5-flash-image")
-    response = model.generate_content(prompt)
+
+    if seed_image_base64:
+        # use seed image for visual reference
+        image_bytes = base64.b64decode(seed_image_base64)
+        contents = [
+            {"mime_type": seed_image_mime or "image/jpeg", "data": image_bytes},
+            f"Using the visual style and elements from this reference image, generate a new scene image: {prompt}"
+        ]
+        response = model.generate_content(contents)
+    else:
+        response = model.generate_content(prompt)
 
     # extract image from response parts
     for candidate in response.candidates:

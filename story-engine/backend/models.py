@@ -106,6 +106,8 @@ class StoryState(BaseModel):
     current_beat_index: int = 0
     user_interventions: list[str] = Field(default_factory=list)
     art_style: Optional[str] = None
+    seed_image_base64: Optional[str] = None
+    seed_image_mime: Optional[str] = None
 
 
 # API request/response models
@@ -114,6 +116,8 @@ class InitRequest(BaseModel):
     seed: Optional[str] = None
     character: Optional[Character] = None
     world: Optional[WorldModel] = None
+    image_base64: Optional[str] = None
+    image_mime: Optional[str] = "image/jpeg"
 
 
 class ChooseArcRequest(BaseModel):

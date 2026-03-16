@@ -35,6 +35,14 @@
       <textarea id="seed-text" placeholder="A disgraced general returns to a city that no longer remembers why it feared him..." rows="3"></textarea>
       <button class="mic-btn" id="mic-btn-seed" onclick="toggleVoiceInput('seed-text', 'mic-btn-seed')" title="Speak your idea">🎙</button>
     </div>
+    <div class="image-upload-area" id="image-upload-area" onclick="document.getElementById('seed-image-input').click()">
+      <input type="file" id="seed-image-input" accept="image/*" style="display:none" onchange="handleImageUpload(this)">
+      <span id="image-upload-label">📷 Or upload an image as your story seed</span>
+    </div>
+    <div id="image-preview-container" class="hidden">
+      <img id="image-preview" src="" alt="Seed image" />
+      <button class="remove-image-btn" onclick="removeImage()">✕ Remove</button>
+    </div>
     <button class="btn-primary" onclick="initStory()">Begin ✦</button>
   </div>
 
@@ -100,6 +108,19 @@
 
 <!-- ── SCREEN 3: STORY ── -->
 <div id="screen-story" class="screen">
+  <div class="style-selector-bar">
+    <label>Visual style</label>
+    <select id="art-style-select" onchange="setArtStyle(this.value)">
+      <option value="cinematic">Cinematic</option>
+      <option value="renaissance">Renaissance</option>
+      <option value="anime">Anime</option>
+      <option value="watercolor">Watercolor</option>
+      <option value="noir">Noir</option>
+      <option value="fantasy">Fantasy</option>
+      <option value="minimal">Minimal</option>
+      <option value="cubism">Cubism</option>
+    </select>
+  </div>
   <div class="story-header">
     <div id="arc-title-display" class="arc-title"></div>
     <div id="beat-progress" class="beat-progress"></div>
@@ -109,6 +130,19 @@
     <div class="scene-area">
       <div id="scene-image-container" class="scene-image hidden">
         <img id="scene-image" src="" alt="Scene illustration" />
+      </div>
+      <div class="image-regen-bar hidden" id="image-regen-bar">
+        <select id="regen-style-select">
+          <option value="cinematic">Cinematic</option>
+          <option value="renaissance">Renaissance</option>
+          <option value="anime">Anime</option>
+          <option value="watercolor">Watercolor</option>
+          <option value="noir">Noir</option>
+          <option value="fantasy">Fantasy</option>
+          <option value="minimal">Minimal</option>
+          <option value="cubism">Cubism</option>
+        </select>
+        <button class="btn-regen" onclick="regenImage()">↺ Regenerate image</button>
       </div>
       <div id="scene-beat-label" class="beat-label"></div>
       <div id="scene-prose" class="prose"></div>

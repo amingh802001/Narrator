@@ -69,17 +69,61 @@ async def build_constitution(
     seed: str = None,
     character: Character = None,
     world: WorldModel = None,
+    image_base64: str = None,
+    image_mime: str = None,
 ) -> StoryConstitution:
 
-    if mode == StoryMode.SEED:
+    if image_base64:
+        # image seed — use multimodal prompt
+        import base64, asyncio, google.generativeai as genai
+        image_bytes = base64.b64decode(image_base64)
+        model = genai.GenerativeModel("gemini-2.5-flash-lite")
+        image_prompt = """You are a story architect. Analyze this image and extract a story constitution from it.
+
+Return a JSON object:
+{
+  "core_identity": "what story this image suggests in one sentence",
+  "emotional_signature": "the emotional tone and feeling of this image",
+  "central_want_pain": "the implied want or tension visible in this image",
+  "theme": "the deeper theme this image evokes",
+  "genre_hint": "primary genre in 2-3 words",
+  "world_contract": {
+    "ethos": "the governing logic of the world in this image",
+    "norms": "what appears normal in this world",
+    "enforcement": "what forces seem to govern this world",
+    "world_gap": "the tension or mystery in this world"
+  },
+  "protagonist": {
+    "name": "a fitting name for the protagonist suggested by this image",
+    "background": "inferred background from the image",
+    "core_gap": "the wound or hunger suggested by the image",
+    "values": "what the protagonist appears to value",
+    "surface_want": "what they appear to want",
+    "deeper_need": "what they actually need"
+  }
+}
+
+""" + (f"Additional context from user: {seed}" if seed and seed != "Generate a story from the provided image." else "") + """
+
+Return ONLY valid JSON. No markdown, no explanation."""
+
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(
+            None, lambda: model.generate_content([
+                {"mime_type": image_mime or "image/jpeg", "data": image_bytes},
+                image_prompt
+            ])
+        )
+        text = response.text
+    elif mode == StoryMode.SEED:
         prompt = CONSTITUTION_FROM_SEED.format(seed=seed)
+        text = await generate(prompt, temperature=0.8, max_tokens=2000)
     else:
         prompt = CONSTITUTION_FROM_CHARACTER.format(
             character=character.model_dump_json(indent=2),
             world=world.model_dump_json(indent=2)
         )
-
-    text = await generate(prompt, temperature=0.8, max_tokens=2000)
+        text = await generate(prompt, temperature=0.8, max_tokens=2000)
     data = parse_json(text)
 
     voice_prompt = VOICE_SELECTION_PROMPT + f"\n\nStory tone: {data['emotional_signature']}\nGenre: {data.get('genre_hint','')}"

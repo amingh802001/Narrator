@@ -8,6 +8,9 @@ let audioChunks = [];
 let isRecording = false;
 let activeRecordTarget = null;
 
+let seedImageBase64 = null;
+let seedImageMime = null;
+
 // ── INIT ──
 window.addEventListener("DOMContentLoaded", async () => {
   const res = await fetch(`${API}/session/new`, { method: "POST" });
@@ -23,6 +26,32 @@ function setMode(mode) {
   document.getElementById("character-input").classList.toggle("hidden", mode !== "character");
 }
 
+
+// ── IMAGE UPLOAD ──
+function handleImageUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  seedImageMime = file.type;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    seedImageBase64 = e.target.result.split(',')[1];
+    document.getElementById('image-preview').src = e.target.result;
+    document.getElementById('image-preview-container').classList.remove('hidden');
+    document.getElementById('image-upload-area').classList.add('hidden');
+    document.getElementById('seed-text').placeholder = 'Optional: add text to guide the story further...';
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeImage() {
+  seedImageBase64 = null;
+  seedImageMime = null;
+  document.getElementById('image-preview-container').classList.add('hidden');
+  document.getElementById('image-upload-area').classList.remove('hidden');
+  document.getElementById('seed-image-input').value = '';
+  document.getElementById('seed-text').placeholder = 'A disgraced general returns to a city that no longer remembers why it feared him...';
+}
+
 // ── STORY INIT ──
 async function initStory() {
   const isSeed = !document.getElementById("seed-input").classList.contains("hidden");
@@ -30,8 +59,13 @@ async function initStory() {
 
   if (isSeed) {
     const seed = document.getElementById("seed-text").value.trim();
-    if (!seed) { alert("Please enter a seed idea."); return; }
-    body = { mode: "seed", seed };
+    if (!seed && !seedImageBase64) { alert("Please enter a seed idea or upload an image."); return; }
+    body = { 
+      mode: "seed", 
+      seed: seed || "Generate a story inspired by this image.",
+      image_base64: seedImageBase64 || null,
+      image_mime: seedImageMime || null,
+    };
   } else {
     const fields = ["char-name","char-background","char-core-gap","char-values","char-want","char-need",
                     "world-ethos","world-norms","world-enforcement","world-gap"];
@@ -62,6 +96,12 @@ async function initStory() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    if (res.status === 503) {
+      btn.textContent = '🔊 Narrate';
+      btn.disabled = false;
+      alert('Narration will be available in the full deployment version.');
+      return;
+    }
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     renderConstitution(data);
@@ -128,6 +168,12 @@ async function selectArc(index) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ arc_index: index }),
     });
+    if (res.status === 503) {
+      btn.textContent = '🔊 Narrate';
+      btn.disabled = false;
+      alert('Narration will be available in the full deployment version.');
+      return;
+    }
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
@@ -159,6 +205,12 @@ async function loadNextScene(intervention = null) {
     if (intervention) url += `?intervention=${encodeURIComponent(intervention)}`;
 
     const res = await fetch(url, { method: "POST" });
+    if (res.status === 503) {
+      btn.textContent = '🔊 Narrate';
+      btn.disabled = false;
+      alert('Narration will be available in the full deployment version.');
+      return;
+    }
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
@@ -170,7 +222,6 @@ async function loadNextScene(intervention = null) {
     renderScene(data);
     currentBeatIndex = data.beat_index + 1;
     renderBeatProgress(data.beat_index);
-    updateSidebar(data.scene.beat);
 
   } catch (e) {
     alert("Error generating scene: " + e.message);
@@ -199,10 +250,18 @@ function renderScene(data) {
   // prose with typewriter effect
   typewriterEffect("scene-prose", scene.prose);
 
+  // always show regen bar so user can generate/regenerate image
+  document.getElementById("image-regen-bar").classList.remove("hidden");
+  // store current beat index for regen
+  window._currentBeatForRegen = data.beat_index;
+
   // enable/disable next
   document.getElementById("btn-next").disabled = false;
   document.getElementById("btn-next").textContent =
     data.is_final ? "Complete story ✦" : "Continue →";
+
+  // update sidebar
+  updateSidebar(data.scene.beat);
 
   // mark beat done in sidebar
   document.querySelectorAll(".beat-item").forEach((el, i) => {
@@ -257,6 +316,12 @@ async function narrateScene() {
     const res = await fetch(`${API}/story/${sessionId}/narrate/${beatIndex}`, {
       method: "POST"
     });
+    if (res.status === 503) {
+      btn.textContent = '🔊 Narrate';
+      btn.disabled = false;
+      alert('Narration will be available in the full deployment version.');
+      return;
+    }
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
@@ -296,10 +361,12 @@ async function toggleVoiceInput(targetId, btnId) {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
+    // Firefox uses ogg, Chrome uses webm
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
     mediaRecorder.onstop = async () => {
-      const blob = new Blob(audioChunks, { type: "audio/webm" });
+      const blob = new Blob(audioChunks, { type: mimeType });
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64 = reader.result.split(",")[1];
@@ -308,7 +375,7 @@ async function toggleVoiceInput(targetId, btnId) {
           const res = await fetch(`${API}/voice/transcribe`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ audio_base64: base64, mime_type: "audio/webm" }),
+            body: JSON.stringify({ audio_base64: base64, mime_type: mimeType }),
           });
           const data = await res.json();
           document.getElementById(targetId).value = data.text;
@@ -379,6 +446,36 @@ async function showComplete() {
   } catch (e) {
     showScreen("screen-complete");
   }
+}
+
+async function regenImage() {
+  const style = document.getElementById("regen-style-select").value;
+  const beatIndex = window._currentBeatForRegen;
+  if (beatIndex === undefined) return;
+
+  const btn = document.querySelector(".btn-regen");
+  btn.textContent = "⏳ Generating...";
+  btn.disabled = true;
+
+  try {
+    await fetch(`${API}/story/${sessionId}/set-style?style=${style}`, { method: "POST" });
+    const res = await fetch(`${API}/story/${sessionId}/regen-image/${beatIndex}`, { method: "POST" });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    if (data.image_url) {
+      document.getElementById("scene-image").src = data.image_url;
+      document.getElementById("scene-image-container").classList.remove("hidden");
+    }
+  } catch(e) {
+    alert("Regeneration failed: " + e.message);
+  } finally {
+    btn.textContent = "↺ Regenerate image";
+    btn.disabled = false;
+  }
+}
+
+async function setArtStyle(style) {
+  await fetch(`${API}/story/${sessionId}/set-style?style=${style}`, { method: "POST" });
 }
 
 function startOver() {

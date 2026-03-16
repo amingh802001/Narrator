@@ -57,6 +57,30 @@ async def set_art_style(session_id: str, style: str):
     return {"art_style": style}
 
 
+
+@app.post("/story/{session_id}/regen-image/{beat_index}")
+async def regen_image(session_id: str, beat_index: int):
+    state = get_session(session_id)
+    if beat_index >= len(state.scenes):
+        raise HTTPException(status_code=404, detail="Scene not found")
+    scene = state.scenes[beat_index]
+    try:
+        image_url = await generate_scene_image(
+            scene=scene,
+            voice_style=state.constitution.voice_style,
+            constitution=state.constitution,
+            previous_scenes=state.scenes[:beat_index],
+            art_style=state.art_style,
+            seed_image_base64=state.seed_image_base64,
+            seed_image_mime=state.seed_image_mime,
+        )
+        if image_url:
+            state.scenes[beat_index].image_url = image_url
+        return {"image_url": image_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -81,8 +105,12 @@ async def init_story(session_id: str, req: InitRequest):
         constitution = await build_constitution(
             mode=req.mode, seed=req.seed,
             character=req.character, world=req.world,
+            image_base64=req.image_base64,
+            image_mime=req.image_mime,
         )
         state.constitution = constitution
+        state.seed_image_base64 = req.image_base64
+        state.seed_image_mime = req.image_mime
         possibilities = await generate_possibilities(constitution=constitution)
         state.possibilities = possibilities
     except Exception as e:
@@ -130,7 +158,9 @@ async def next_scene(session_id: str, intervention: str = None):
             voice_style=state.constitution.voice_style,
             constitution=state.constitution,
             previous_scenes=state.scenes,
-            art_style=state.art_style if hasattr(state, 'art_style') else None,
+            art_style=state.art_style,
+            seed_image_base64=state.seed_image_base64,
+            seed_image_mime=state.seed_image_mime,
         )
         scene.image_url = image_url
         state.scenes.append(scene)
