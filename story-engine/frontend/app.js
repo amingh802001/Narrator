@@ -13,6 +13,14 @@ let seedImageMime = null;
 
 // ── INIT ──
 window.addEventListener("DOMContentLoaded", async () => {
+  // preload speech synthesis voices
+  if (window.speechSynthesis) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.getVoices(); // cache them
+    };
+  }
+
   const res = await fetch(`${API}/session/new`, { method: "POST" });
   const data = await res.json();
   sessionId = data.session_id;
@@ -128,6 +136,7 @@ function renderConstitution(data) {
     `${c.world_contract.ethos}`;
   document.getElementById("const-voice").textContent =
     `${data.voice_style} — ${voiceDescription(data.voice_style)}`;
+  window._voiceStyle = data.voice_style;
 
   const grid = document.getElementById("arc-candidates");
   grid.innerHTML = "";
@@ -303,42 +312,78 @@ async function intervene() {
   await loadNextScene(text);
 }
 
-// ── NARRATION ──
-async function narrateScene() {
+// ── NARRATION (Web Speech API) ──
+let currentUtterance = null;
+
+function narrateScene() {
+  if (!window.speechSynthesis) {
+    alert("Speech synthesis not supported in this browser.");
+    return;
+  }
+
+  const btn = document.getElementById("btn-narrate");
+
+  // if currently speaking, stop
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    btn.textContent = "🔊 Narrate";
+    return;
+  }
+
   const beatIndex = currentBeatIndex - 1;
   if (beatIndex < 0) return;
 
-  const btn = document.getElementById("btn-narrate");
-  btn.textContent = "⏳ Generating...";
-  btn.disabled = true;
+  // get prose text from current scene display
+  const proseEl = document.getElementById("scene-prose");
+  const text = proseEl.textContent;
+  if (!text) return;
 
-  try {
-    const res = await fetch(`${API}/story/${sessionId}/narrate/${beatIndex}`, {
-      method: "POST"
-    });
-    if (res.status === 503) {
-      btn.textContent = '🔊 Narrate';
-      btn.disabled = false;
-      alert('Narration will be available in the full deployment version.');
-      return;
-    }
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
+  const utterance = new SpeechSynthesisUtterance(text);
+  currentUtterance = utterance;
 
-    const audio = document.getElementById("narration-audio");
-    audio.src = `data:${data.mime_type};base64,${data.audio_base64}`;
-    audio.play();
-
-    btn.textContent = "🔊 Narrating...";
-    audio.onended = () => {
-      btn.textContent = "🔊 Narrate";
-      btn.disabled = false;
-    };
-  } catch (e) {
-    alert("Narration error: " + e.message);
-    btn.textContent = "🔊 Narrate";
-    btn.disabled = false;
+  // pick voice based on constitution voice style
+  const voices = window.speechSynthesis.getVoices();
+  const voiceStyle = window._voiceStyle || "NEUTRAL";
+  
+  // voice selection by style
+  const voicePrefs = {
+    EPIC:      ["Google UK English Male", "Daniel", "Alex"],
+    WHIMSICAL: ["Google UK English Female", "Karen", "Samantha"],
+    TENSE:     ["Google US English", "Fred", "Alex"],
+    LYRICAL:   ["Google UK English Female", "Moira", "Samantha"],
+    NEUTRAL:   ["Samantha", "Google US English", "Alex"],
+  };
+  const prefs = voicePrefs[voiceStyle] || voicePrefs.NEUTRAL;
+  let selectedVoice = null;
+  for (const pref of prefs) {
+    selectedVoice = voices.find(v => v.name.includes(pref));
+    if (selectedVoice) break;
   }
+  if (selectedVoice) utterance.voice = selectedVoice;
+
+  // rate and pitch by style
+  const styleConfig = {
+    EPIC:      { rate: 0.85, pitch: 0.8 },
+    WHIMSICAL: { rate: 1.05, pitch: 1.1 },
+    TENSE:     { rate: 0.95, pitch: 0.9 },
+    LYRICAL:   { rate: 0.9,  pitch: 1.0 },
+    NEUTRAL:   { rate: 1.0,  pitch: 1.0 },
+  };
+  const config = styleConfig[voiceStyle] || styleConfig.NEUTRAL;
+  utterance.rate = config.rate;
+  utterance.pitch = config.pitch;
+
+  utterance.onstart = () => {
+    btn.textContent = "⏹ Stop";
+  };
+  utterance.onend = () => {
+    btn.textContent = "🔊 Narrate";
+  };
+  utterance.onerror = () => {
+    btn.textContent = "🔊 Narrate";
+  };
+
+  window.speechSynthesis.speak(utterance);
 }
 
 // ── VOICE INPUT ──
