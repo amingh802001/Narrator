@@ -100,7 +100,7 @@ The **hierarchical generation** (constitution → possibilities → skeleton →
 
 ```bash
 git clone https://github.com/amingh802001/Narrator
-cd Narrator
+cd story-engine
 cp .env.example .env
 # add your GEMINI_API_KEY to .env
 ./setup.sh
