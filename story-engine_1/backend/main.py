@@ -46,6 +46,17 @@ async def root():
         return FileResponse(index)
     return {"status": "Story Engine API running"}
 
+
+@app.post("/story/{session_id}/set-style")
+async def set_art_style(session_id: str, style: str):
+    state = get_session(session_id)
+    valid = ["cinematic","renaissance","anime","minimal","watercolor","noir","fantasy","cubism"]
+    if style not in valid:
+        raise HTTPException(status_code=400, detail=f"Style must be one of: {valid}")
+    state.art_style = style
+    return {"art_style": style}
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -115,7 +126,11 @@ async def next_scene(session_id: str, intervention: str = None):
             previous_scenes=state.scenes, intervention=intervention,
         )
         image_url = await generate_scene_image(
-            scene=scene, voice_style=state.constitution.voice_style,
+            scene=scene,
+            voice_style=state.constitution.voice_style,
+            constitution=state.constitution,
+            previous_scenes=state.scenes,
+            art_style=state.art_style if hasattr(state, 'art_style') else None,
         )
         scene.image_url = image_url
         state.scenes.append(scene)
@@ -148,9 +163,11 @@ async def narrate_scene(session_id: str, beat_index: int):
             scene=scene, voice_style=state.constitution.voice_style,
         )
         audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        return {"audio_base64": audio_b64, "mime_type": "audio/mp3"}
+    except NotImplementedError:
+        raise HTTPException(status_code=503, detail="Narration not available in this version")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return {"audio_base64": audio_b64, "mime_type": "audio/wav"}
 
 @app.post("/voice/transcribe")
 async def transcribe_audio(req: VoiceInputRequest):

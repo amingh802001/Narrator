@@ -105,6 +105,7 @@ class StoryState(BaseModel):
     scenes: list[GeneratedScene] = Field(default_factory=list)
     current_beat_index: int = 0
     user_interventions: list[str] = Field(default_factory=list)
+    art_style: Optional[str] = None
 
 
 # API request/response models
