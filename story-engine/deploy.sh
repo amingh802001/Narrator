@@ -4,8 +4,8 @@
 
 set -e
 
-PROJECT_ID=project-ea7cea6d-6f87-4633-be3
-GEMINI_API_KEY=AIzaSyBlPpKHL5i8EqhnWRuweG5LfN6wf8HCTHU
+PROJECT_ID="Your Project ID"
+GEMINI_API_KEY="Your Key"
 SERVICE_NAME="story-engine"
 REGION="us-central1"
 IMAGE="gcr.io/$PROJECT_ID/$SERVICE_NAME"
